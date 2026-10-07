@@ -10,6 +10,7 @@ REQUIRED_FIELDS = ["告警编号", "告警来源", "告警类型"]
 STATUS_ORDER = ["未确认", "已确认", "处理中", "已消除"]
 ACTION_RULES = {"确认告警": "已确认", "开始处理": "处理中", "消除告警": "已消除"}
 NEGATIVE_ACTIONS = []
+DEFAULT_REGION = "未分区"
 
 
 class AlarmService:
@@ -40,6 +41,8 @@ class AlarmService:
         rows = store.rows(MODULE)
         entry = {"id": max((int(row.get("id", 0)) for row in rows), default=0) + 1}
         entry.update({field: values.get(field) for field in REQUIRED_FIELDS})
+        # 运营概览按片区汇总，登记时没带片区就归入未分区，保证汇总不漏数。
+        entry["所属片区"] = str(values.get("所属片区") or "").strip() or DEFAULT_REGION
         entry["status"] = STATUS_ORDER[0]
         entry["pending"] = True
         entry["abnormal"] = False

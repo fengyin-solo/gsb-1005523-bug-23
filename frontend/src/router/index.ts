@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 import Dashboard from '@/views/Dashboard.vue'
+const OverviewDetail = () => import('@/views/OverviewDetail.vue')
 const PvArray = () => import('@/views/pv_array/index.vue')
 const Inverter = () => import('@/views/inverter/index.vue')
 const CombinerBox = () => import('@/views/combiner_box/index.vue')
@@ -24,6 +25,7 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'dashboard', component: Dashboard },
+    { path: '/overview/detail', name: 'overview_detail', component: OverviewDetail },
     { path: '/pv_array', name: 'pv_array', component: PvArray },
     { path: '/inverter', name: 'inverter', component: Inverter },
     { path: '/combiner_box', name: 'combiner_box', component: CombinerBox },

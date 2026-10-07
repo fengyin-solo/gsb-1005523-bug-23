@@ -70,10 +70,11 @@ import { request } from '@/api/client'
 type Row = Record<string, string | number | null>
 
 const ENDPOINT = '/api/defect'
-const columns = ["缺陷编号", "发现日期", "缺陷设备", "缺陷类别", "严重等级", "处理方案", "整改时限", "缺陷状态"]
+const columns = ["缺陷编号", "所属片区", "发现日期", "缺陷设备", "缺陷类别", "严重等级", "处理方案", "整改时限", "缺陷状态"]
 const actions = ["分派处理", "提交验收", "关闭缺陷"]
 const statuses = ["待分派", "处理中", "已验收", "已关闭"]
-const stats = [{"label": "待处理缺陷", "value": 0}, {"label": "处理中缺陷", "value": 0}, {"label": "超期缺陷", "value": 0}]
+// 统计卡片与运营概览读同一份落库汇总，标签先占位、数值由 /api/defect/stats 回填。
+const stats = ref([{"label": "待处理缺陷", "value": 0}, {"label": "处理中缺陷", "value": 0}, {"label": "超期缺陷", "value": 0}])
 
 const rows = ref<Row[]>([])
 const total = ref(0)
@@ -105,8 +106,22 @@ async function runAction(action: string, row: Row) {
       throw new Error('缺陷管理动作未生效，请稍后重试')
     }
     await reload()
+    await loadStats()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '缺陷管理操作失败'
+  }
+}
+
+async function loadStats() {
+  try {
+    const response = await request(`${ENDPOINT}/stats`)
+    if (!response.ok) {
+      throw new Error('设备缺陷统计读取失败')
+    }
+    const payload = await response.json()
+    stats.value = payload.stats ?? []
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '设备缺陷统计读取失败'
   }
 }
 
@@ -126,5 +141,8 @@ async function reload() {
   }
 }
 
-onMounted(reload)
+onMounted(() => {
+  void reload()
+  void loadStats()
+})
 </script>

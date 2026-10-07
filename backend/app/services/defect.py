@@ -10,6 +10,7 @@ REQUIRED_FIELDS = ["缺陷编号", "发现日期", "缺陷设备"]
 STATUS_ORDER = ["待分派", "处理中", "已验收", "已关闭"]
 ACTION_RULES = {"分派处理": "处理中", "提交验收": "已验收", "关闭缺陷": "已关闭"}
 NEGATIVE_ACTIONS = []
+DEFAULT_REGION = "未分区"
 
 
 class DefectService:
@@ -40,6 +41,8 @@ class DefectService:
         rows = store.rows(MODULE)
         entry = {"id": max((int(row.get("id", 0)) for row in rows), default=0) + 1}
         entry.update({field: values.get(field) for field in REQUIRED_FIELDS})
+        # 运营概览按片区汇总，登记时没带片区就归入未分区，保证汇总不漏数。
+        entry["所属片区"] = str(values.get("所属片区") or "").strip() or DEFAULT_REGION
         entry["status"] = STATUS_ORDER[0]
         entry["pending"] = True
         entry["abnormal"] = False

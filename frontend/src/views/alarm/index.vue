@@ -70,10 +70,11 @@ import { request } from '@/api/client'
 type Row = Record<string, string | number | null>
 
 const ENDPOINT = '/api/alarm'
-const columns = ["告警编号", "告警来源", "告警类型", "触发时间", "告警阈值", "当前值", "确认人", "告警状态"]
+const columns = ["告警编号", "所属片区", "告警来源", "告警类型", "触发时间", "告警阈值", "当前值", "确认人", "告警状态"]
 const actions = ["确认告警", "开始处理", "消除告警"]
 const statuses = ["未确认", "已确认", "处理中", "已消除"]
-const stats = [{"label": "未确认告警", "value": 0}, {"label": "今日新增告警", "value": 0}, {"label": "未消除告警", "value": 0}]
+// 统计卡片与运营概览读同一份落库汇总，标签先占位、数值由 /api/alarm/stats 回填。
+const stats = ref([{"label": "未确认告警", "value": 0}, {"label": "今日新增告警", "value": 0}, {"label": "未消除告警", "value": 0}])
 
 const rows = ref<Row[]>([])
 const total = ref(0)
@@ -105,8 +106,22 @@ async function runAction(action: string, row: Row) {
       throw new Error('告警事件动作未生效，请稍后重试')
     }
     await reload()
+    await loadStats()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '告警事件操作失败'
+  }
+}
+
+async function loadStats() {
+  try {
+    const response = await request(`${ENDPOINT}/stats`)
+    if (!response.ok) {
+      throw new Error('告警事件统计读取失败')
+    }
+    const payload = await response.json()
+    stats.value = payload.stats ?? []
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '告警事件统计读取失败'
   }
 }
 
@@ -126,5 +141,8 @@ async function reload() {
   }
 }
 
-onMounted(reload)
+onMounted(() => {
+  void reload()
+  void loadStats()
+})
 </script>

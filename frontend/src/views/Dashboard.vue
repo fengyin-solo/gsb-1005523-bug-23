@@ -3,52 +3,133 @@
     <header class="page-head">
       <div>
         <h2>运营概览</h2>
-        <p class="page-desc">汇总各业务模块的关键指标，先看总量再看异常。</p>
+        <p class="page-desc">按片区汇总告警与缺陷的待处理量和异常量，卡片、明细与模块统计读同一份落库数据。</p>
+      </div>
+      <div class="page-actions">
+        <input v-model="queryDate" type="date" class="date-input" />
+        <button class="btn" type="button" @click="reload">查询</button>
+        <button class="btn ghost" type="button" @click="backfill">回填历史汇总</button>
       </div>
     </header>
+
+    <p class="overview-meta">
+      统计日期 {{ overview.date || '—' }} · {{ overview.criteria_note || '口径加载中' }}
+      <span v-if="overview.generated_at">· 汇总生成于 {{ overview.generated_at }}</span>
+    </p>
+
     <div class="stat-row">
       <article v-for="card in cards" :key="card.label" class="stat-card">
         <span class="stat-label">{{ card.label }}</span>
         <strong class="stat-value">{{ card.value }}</strong>
       </article>
     </div>
+
     <table class="data-table">
       <thead>
-        <tr><th>业务模块</th><th>今日新增</th><th>待处理</th><th>异常量</th></tr>
+        <tr>
+          <th>片区</th><th>当日新增</th><th>待处理</th><th>异常量</th><th>告警待处理</th><th>缺陷待处理</th><th>明细</th>
+        </tr>
       </thead>
       <tbody>
-        <tr v-for="row in moduleRows" :key="row.name">
-          <td>{{ row.name }}</td>
+        <tr v-for="row in regionRows" :key="row.region">
+          <td>{{ row.region }}</td>
           <td>{{ row.created }}</td>
           <td>{{ row.pending }}</td>
           <td>{{ row.abnormal }}</td>
+          <td>{{ row.alarm_pending }}</td>
+          <td>{{ row.defect_pending }}</td>
+          <td><button class="link" type="button" @click="openDetail(row.region)">查看明细</button></td>
+        </tr>
+        <tr v-if="!regionRows.length">
+          <td colspan="7" class="empty-state">该日期暂无已落库的片区汇总</td>
         </tr>
       </tbody>
     </table>
+
+    <footer class="page-foot">
+      <span>两处口径打架时以概览为准；历史概览沿用生成时的统计口径，不按新口径重算。</span>
+      <span v-if="message" class="error-text">{{ message }}</span>
+    </footer>
   </section>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
-import { fetchJson } from '@/api/client'
+import { fetchJson, request } from '@/api/client'
 
-type Overview = {
-  cards: { label: string; value: number }[]
-  modules: { name: string; created: number; pending: number; abnormal: number }[]
+type RegionRow = {
+  region: string
+  created: number
+  pending: number
+  abnormal: number
+  alarm_pending: number
+  defect_pending: number
 }
 
-const cards = ref<Overview['cards']>([])
-const moduleRows = ref<Overview['modules']>([])
+type Overview = {
+  date: string
+  criteria_version: number
+  criteria_note: string
+  generated_at: string
+  cards: { label: string; value: number }[]
+  regions: RegionRow[]
+}
 
-onMounted(async () => {
-  try {
-    const payload = await fetchJson<Overview>('/api/overview')
-    cards.value = payload.cards
-    moduleRows.value = payload.modules
-  } catch {
-    cards.value = [{"label": "业务模块", "value": 0}, {"label": "今日新增", "value": 0}]
-    moduleRows.value = [{"name": "光伏阵列", "created": 0, "pending": 0, "abnormal": 0}, {"name": "逆变器监视", "created": 0, "pending": 0, "abnormal": 0}, {"name": "汇流箱检测", "created": 0, "pending": 0, "abnormal": 0}, {"name": "变压器监视", "created": 0, "pending": 0, "abnormal": 0}, {"name": "储能电池组", "created": 0, "pending": 0, "abnormal": 0}, {"name": "升压站监视", "created": 0, "pending": 0, "abnormal": 0}, {"name": "关口计量", "created": 0, "pending": 0, "abnormal": 0}, {"name": "环境监测站", "created": 0, "pending": 0, "abnormal": 0}, {"name": "组件清洗", "created": 0, "pending": 0, "abnormal": 0}, {"name": "巡视检查", "created": 0, "pending": 0, "abnormal": 0}, {"name": "缺陷管理", "created": 0, "pending": 0, "abnormal": 0}, {"name": "检修计划", "created": 0, "pending": 0, "abnormal": 0}, {"name": "备品备件", "created": 0, "pending": 0, "abnormal": 0}, {"name": "告警事件", "created": 0, "pending": 0, "abnormal": 0}, {"name": "调度指令", "created": 0, "pending": 0, "abnormal": 0}, {"name": "安全措施", "created": 0, "pending": 0, "abnormal": 0}, {"name": "运维合同", "created": 0, "pending": 0, "abnormal": 0}, {"name": "运行月报", "created": 0, "pending": 0, "abnormal": 0}]
-  }
+const router = useRouter()
+const route = useRoute()
+
+const overview = ref<Overview>({
+  date: '',
+  criteria_version: 0,
+  criteria_note: '',
+  generated_at: '',
+  cards: [],
+  regions: [],
 })
+const cards = ref<Overview['cards']>([])
+const regionRows = ref<RegionRow[]>([])
+const queryDate = ref(String(route.query.day ?? ''))
+const message = ref('')
+
+async function reload() {
+  message.value = ''
+  const query = queryDate.value ? `?day=${queryDate.value}` : ''
+  try {
+    const payload = await fetchJson<Overview>(`/api/overview${query}`)
+    overview.value = payload
+    cards.value = payload.cards
+    regionRows.value = payload.regions
+    queryDate.value = payload.date
+  } catch (error) {
+    cards.value = []
+    regionRows.value = []
+    message.value = error instanceof Error ? error.message : '运营概览读取失败'
+  }
+}
+
+async function backfill() {
+  message.value = ''
+  try {
+    const response = await request('/api/overview/backfill', { method: 'POST' })
+    const payload = await response.json()
+    message.value = payload.message ?? '存量汇总已回填'
+    await reload()
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : '存量汇总回填失败'
+  }
+}
+
+function openDetail(region: string) {
+  void router.push({ path: '/overview/detail', query: { day: overview.value.date, region } })
+}
+
+onMounted(reload)
 </script>
+
+<style scoped>
+.page-actions { display: flex; gap: 8px; align-items: center; }
+.date-input { border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
+.overview-meta { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
+</style>

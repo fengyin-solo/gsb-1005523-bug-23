@@ -27,23 +27,5 @@ class Store:
                 return row
         return None
 
-    def overview(self) -> dict[str, object]:
-        modules: list[dict[str, object]] = []
-        for name in self.module_names():
-            rows = self.rows(name)
-            modules.append({
-                "name": name,
-                "created": len(rows),
-                "pending": sum(1 for row in rows if row.get("pending")),
-                "abnormal": sum(1 for row in rows if row.get("abnormal")),
-            })
-        cards = [
-            {"label": "业务模块", "value": len(modules)},
-            {"label": "今日新增", "value": sum(int(item["created"]) for item in modules)},
-            {"label": "待处理", "value": sum(int(item["pending"]) for item in modules)},
-            {"label": "异常量", "value": sum(int(item["abnormal"]) for item in modules)},
-        ]
-        return {"cards": cards, "modules": modules}
-
 
 store = Store()

@@ -7,12 +7,13 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app.schemas import ActionResult, EntryPayload, PageResult
 from app.services.defect import DefectService
+from app.services.overview import overview_service
 
 router = APIRouter(prefix="/api/defect", tags=["缺陷管理"])
 
 service = DefectService()
 
-LIST_FIELDS = ["缺陷编号", "发现日期", "缺陷设备", "缺陷类别", "严重等级", "处理方案", "整改时限", "缺陷状态"]
+LIST_FIELDS = ["缺陷编号", "所属片区", "发现日期", "缺陷设备", "缺陷类别", "严重等级", "处理方案", "整改时限", "缺陷状态"]
 STATUSES = ["待分派", "处理中", "已验收", "已关闭"]
 
 
@@ -28,6 +29,19 @@ def list_entries(
         raise HTTPException(status_code=400, detail="每页最多 200 条，请缩小分页范围")
     items, total = service.list_entries(keyword=keyword, status=status, page=page, size=size)
     return PageResult(items=items, total=total, page=page, size=size)
+
+
+@router.get("/stats")
+def defect_stats() -> dict[str, Any]:
+    """缺陷统计卡片：与运营概览读同一份落库汇总，两处口径打架时以概览为准。"""
+    return overview_service.module_stats("defect")
+
+
+@router.get("/export")
+def export_entries() -> dict[str, Any]:
+    """导出缺陷管理清单：返回当前过滤条件下的全量数据。"""
+    items, total = service.list_entries(page=1, size=10000)
+    return {"module": "defect", "total": total, "items": items}
 
 
 @router.get("/{entry_id}", response_model=dict)
@@ -56,10 +70,3 @@ def run_action(entry_id: int, payload: EntryPayload) -> ActionResult:
     if entry is None:
         return ActionResult(ok=False, message=message)
     return ActionResult(ok=True, message=message, entry=entry)
-
-
-@router.get("/export")
-def export_entries() -> dict[str, Any]:
-    """导出缺陷管理清单：返回当前过滤条件下的全量数据。"""
-    items, total = service.list_entries(page=1, size=10000)
-    return {"module": "defect", "total": total, "items": items}
